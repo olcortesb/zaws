@@ -1,6 +1,7 @@
 //! By convention, root.zig is the root source file when making a package.
 const std = @import("std");
 const Io = std.Io;
+pub const core = @import("core/core.zig");
 
 /// This is a documentation comment to explain the `printAnotherMessage` function below.
 ///
