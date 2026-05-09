@@ -76,19 +76,23 @@ pub fn sign(buf: []u8, info: RequestInfo, date: []const u8, region: []const u8, 
     });
 }
 
-test "check hmac" {
-    const key = "KEY";
-    const message = "PRAH";
-    const result = hmac(key, message);
-    std.debug.print("hmac: {x}\n", .{result});
+test "hmac produces 32 bytes" {
+    const result = hmac("KEY", "PRAH");
+    try std.testing.expect(result.len == 32);
 }
 
-test "derive signing key" {
+test "hmac is deterministic" {
+    const a = hmac("KEY", "PRAH");
+    const b = hmac("KEY", "PRAH");
+    try std.testing.expectEqualSlices(u8, &a, &b);
+}
+
+test "derive signing key produces 32 bytes" {
     const key = deriveSigningKey("wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20250507", "us-east-1", "s3");
-    std.debug.print("signing key: {x}\n", .{key});
+    try std.testing.expect(key.len == 32);
 }
 
-test "print canonical request" {
+test "canonical request format" {
     var buf: [1024]u8 = undefined;
     const info = RequestInfo{
         .method = "GET",
@@ -100,10 +104,11 @@ test "print canonical request" {
     };
 
     const result = try canonicalRequest(&buf, info);
-    std.debug.print("{s}\n", .{result});
+    try std.testing.expect(std.mem.startsWith(u8, result, "GET"));
+    try std.testing.expect(std.mem.indexOf(u8, result, "host:s3.us-east-1.amazonaws.com") != null);
 }
 
-test "string to sign" {
+test "string to sign format" {
     var canon_buf: [1024]u8 = undefined;
     const info = RequestInfo{
         .method = "GET",
@@ -117,10 +122,11 @@ test "string to sign" {
 
     var sts_buf: [1024]u8 = undefined;
     const result = try stringToSign(&sts_buf, "20250507T152300Z", "20250507", "us-east-1", "s3", canonical);
-    std.debug.print("{s}\n", .{result});
+    try std.testing.expect(std.mem.startsWith(u8, result, "AWS4-HMAC-SHA256"));
+    try std.testing.expect(std.mem.indexOf(u8, result, "20250507/us-east-1/s3/aws4_request") != null);
 }
 
-test "sign request" {
+test "sign produces authorization header" {
     var buf: [1024]u8 = undefined;
     const info = RequestInfo{
         .method = "GET",
@@ -132,5 +138,6 @@ test "sign request" {
     };
 
     const auth_header = try sign(&buf, info, "20250507", "us-east-1", "s3", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "AKIAIOSFODNN7EXAMPLE");
-    std.debug.print("Authorization: {s}\n", .{auth_header});
+    try std.testing.expect(std.mem.startsWith(u8, auth_header, "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE"));
+    try std.testing.expect(std.mem.indexOf(u8, auth_header, "Signature=") != null);
 }
